@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -8,22 +8,30 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { CalendarIcon, Upload, Send } from "lucide-react";
+import { CalendarIcon, Upload, Send, Infinity } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
+import { useDepartments } from "@/hooks/useDepartments";
+import { ContractFormData } from "@/hooks/useContracts";
+import { Checkbox } from "@/components/ui/checkbox";
 
 interface ContractFormProps {
   mode: 'create' | 'review' | 'approve';
-  onSubmit: (data: any) => void;
-  initialData?: any;
+  onSubmit: (data: ContractFormData) => void;
+  initialData?: Partial<ContractFormData>;
 }
 
 export function ContractForm({ mode, onSubmit, initialData }: ContractFormProps) {
-  const [formData, setFormData] = useState({
+  const { departments, getUnitsByDepartment } = useDepartments();
+  const [isIndefinite, setIsIndefinite] = useState(initialData?.duration === 'Indefinite');
+  
+  const [formData, setFormData] = useState<ContractFormData>({
     companyName: initialData?.companyName || '',
     contractTitle: initialData?.contractTitle || '',
+    contractFilingFileName: initialData?.contractFilingFileName || '',
     contractType: initialData?.contractType || '',
     department: initialData?.department || '',
+    unit: initialData?.unit || '',
     contactPerson: initialData?.contactPerson || '',
     duration: initialData?.duration || '',
     commencementDate: initialData?.commencementDate || null,
@@ -31,7 +39,6 @@ export function ContractForm({ mode, onSubmit, initialData }: ContractFormProps)
     validityStatus: initialData?.validityStatus || 'Open',
     description: initialData?.description || '',
     remarks: initialData?.remarks || '',
-    keyTerms: initialData?.keyTerms || [],
     attachments: initialData?.attachments || []
   });
 
@@ -40,24 +47,64 @@ export function ContractForm({ mode, onSubmit, initialData }: ContractFormProps)
     'NDA', 'Maintenance', 'Works', 'Lease', 'Other'
   ];
 
-  const departments = [
-    'Legal', 'IT', 'Finance', 'HR', 'Operations', 'Risk', 'Compliance', 'Procurement'
+  const contractFilingFileNames = [
+    'Standard Service Agreement',
+    'Software License Agreement',
+    'Property Lease Agreement',
+    'Memorandum of Understanding',
+    'Supply Agreement',
+    'Consultancy Agreement',
+    'Non-Disclosure Agreement',
+    'Maintenance Agreement',
+    'Works Contract',
+    'Property Lease',
+    'Other'
   ];
+
+  const validityStatuses = ['Open', 'Closed', 'Indefinite'];
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     onSubmit(formData);
   };
 
-  const handleInputChange = (field: string, value: any) => {
+  const handleInputChange = (field: keyof ContractFormData, value: any) => {
     setFormData(prev => ({ ...prev, [field]: value }));
   };
 
-  const addKeyTerm = () => {
-    setFormData(prev => ({
-      ...prev,
-      keyTerms: [...prev.keyTerms, { term: '', description: '', dueDate: null, status: 'Pending' }]
-    }));
+  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(event.target.files || []);
+    setFormData(prev => ({ ...prev, attachments: files }));
+  };
+
+  const handleIndefiniteChange = (checked: boolean) => {
+    setIsIndefinite(checked);
+    if (checked) {
+      setFormData(prev => ({ 
+        ...prev, 
+        duration: 'Indefinite',
+        expiryDate: null,
+        validityStatus: 'Indefinite'
+      }));
+    } else {
+      setFormData(prev => ({ 
+        ...prev, 
+        duration: '',
+        validityStatus: 'Open'
+      }));
+    }
+  };
+
+  const getDaysToExpiry = (): string => {
+    if (!formData.expiryDate || isIndefinite) return 'N/A';
+    
+    const expiry = new Date(formData.expiryDate);
+    const today = new Date();
+    const timeDiff = expiry.getTime() - today.getTime();
+    const daysDiff = Math.ceil(timeDiff / (1000 * 3600 * 24));
+    
+    if (daysDiff < 0) return 'Expired';
+    return `${daysDiff} days`;
   };
 
   return (
@@ -113,10 +160,31 @@ export function ContractForm({ mode, onSubmit, initialData }: ContractFormProps)
             </div>
 
             <div className="space-y-2">
+              <Label htmlFor="contractFilingFileName">Contract Filing File Name</Label>
+              <Select
+                value={formData.contractFilingFileName}
+                onValueChange={(value) => handleInputChange('contractFilingFileName', value)}
+                disabled={mode === 'approve'}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select filing file name" />
+                </SelectTrigger>
+                <SelectContent>
+                  {contractFilingFileNames.map((fileName) => (
+                    <SelectItem key={fileName} value={fileName}>{fileName}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
               <Label htmlFor="department">Department *</Label>
               <Select
                 value={formData.department}
-                onValueChange={(value) => handleInputChange('department', value)}
+                onValueChange={(value) => {
+                  handleInputChange('department', value);
+                  handleInputChange('unit', ''); // Reset unit when department changes
+                }}
                 disabled={mode === 'approve'}
               >
                 <SelectTrigger>
@@ -124,7 +192,25 @@ export function ContractForm({ mode, onSubmit, initialData }: ContractFormProps)
                 </SelectTrigger>
                 <SelectContent>
                   {departments.map((dept) => (
-                    <SelectItem key={dept} value={dept}>{dept}</SelectItem>
+                    <SelectItem key={dept.id} value={dept.id}>{dept.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="unit">Unit</Label>
+              <Select
+                value={formData.unit}
+                onValueChange={(value) => handleInputChange('unit', value)}
+                disabled={mode === 'approve' || !formData.department}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select unit" />
+                </SelectTrigger>
+                <SelectContent>
+                  {getUnitsByDepartment(formData.department).map((unit) => (
+                    <SelectItem key={unit.id} value={unit.id}>{unit.name}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -142,15 +228,37 @@ export function ContractForm({ mode, onSubmit, initialData }: ContractFormProps)
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="duration">Duration (months) *</Label>
-              <Input
-                id="duration"
-                type="number"
-                value={formData.duration}
-                onChange={(e) => handleInputChange('duration', e.target.value)}
-                required
-                disabled={mode === 'approve'}
-              />
+              <Label htmlFor="duration">Duration *</Label>
+              <div className="space-y-3">
+                <div className="flex items-center space-x-2">
+                  <Checkbox
+                    id="indefinite"
+                    checked={isIndefinite}
+                    onCheckedChange={handleIndefiniteChange}
+                    disabled={mode === 'approve'}
+                  />
+                  <Label htmlFor="indefinite" className="text-sm font-normal">
+                    Indefinite Contract
+                  </Label>
+                </div>
+                {!isIndefinite && (
+                  <Input
+                    id="duration"
+                    type="number"
+                    placeholder="Duration in months"
+                    value={formData.duration === 'Indefinite' ? '' : formData.duration}
+                    onChange={(e) => handleInputChange('duration', e.target.value)}
+                    required
+                    disabled={mode === 'approve'}
+                  />
+                )}
+                {isIndefinite && (
+                  <div className="flex items-center space-x-2 text-sm text-muted-foreground">
+                    <Infinity className="h-4 w-4" />
+                    <span>Contract duration is indefinite</span>
+                  </div>
+                )}
+              </div>
             </div>
 
             <div className="space-y-2">
@@ -181,30 +289,62 @@ export function ContractForm({ mode, onSubmit, initialData }: ContractFormProps)
             </div>
 
             <div className="space-y-2">
-              <Label>Expiry Date *</Label>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button
-                    variant="outline"
-                    className={cn(
-                      "w-full justify-start text-left font-normal",
-                      !formData.expiryDate && "text-muted-foreground"
-                    )}
-                    disabled={mode === 'approve'}
-                  >
-                    <CalendarIcon className="mr-2 h-4 w-4" />
-                    {formData.expiryDate ? format(formData.expiryDate, "PPP") : "Pick a date"}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0">
-                  <Calendar
-                    mode="single"
-                    selected={formData.expiryDate}
-                    onSelect={(date) => handleInputChange('expiryDate', date)}
-                    initialFocus
-                  />
-                </PopoverContent>
-              </Popover>
+              <Label>Expiry Date {!isIndefinite && '*'}</Label>
+              {!isIndefinite ? (
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      className={cn(
+                        "w-full justify-start text-left font-normal",
+                        !formData.expiryDate && "text-muted-foreground"
+                      )}
+                      disabled={mode === 'approve'}
+                    >
+                      <CalendarIcon className="mr-2 h-4 w-4" />
+                      {formData.expiryDate ? format(formData.expiryDate, "PPP") : "Pick a date"}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0">
+                    <Calendar
+                      mode="single"
+                      selected={formData.expiryDate}
+                      onSelect={(date) => handleInputChange('expiryDate', date)}
+                      initialFocus
+                    />
+                  </PopoverContent>
+                </Popover>
+              ) : (
+                <div className="flex items-center space-x-2 text-sm text-muted-foreground p-3 border rounded-md">
+                  <Infinity className="h-4 w-4" />
+                  <span>No expiry date (indefinite contract)</span>
+                </div>
+              )}
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="validityStatus">Validity Status *</Label>
+              <Select
+                value={formData.validityStatus}
+                onValueChange={(value: 'Open' | 'Closed' | 'Indefinite') => handleInputChange('validityStatus', value)}
+                disabled={mode === 'approve'}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select validity status" />
+                </SelectTrigger>
+                <SelectContent>
+                  {validityStatuses.map((status) => (
+                    <SelectItem key={status} value={status}>{status}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Days to Expiry</Label>
+              <div className="p-3 border rounded-md bg-muted/50">
+                <span className="text-sm font-medium">{getDaysToExpiry()}</span>
+              </div>
             </div>
           </div>
 
@@ -220,63 +360,6 @@ export function ContractForm({ mode, onSubmit, initialData }: ContractFormProps)
             />
           </div>
 
-          {mode !== 'create' && (
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <Label>Key Contract Terms</Label>
-                {mode === 'review' && (
-                  <Button type="button" onClick={addKeyTerm} size="sm">
-                    Add Key Term
-                  </Button>
-                )}
-              </div>
-              {formData.keyTerms.map((term: any, index: number) => (
-                <Card key={index} className="p-4">
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <Input
-                      placeholder="Term name"
-                      value={term.term}
-                      onChange={(e) => {
-                        const newTerms = [...formData.keyTerms];
-                        newTerms[index].term = e.target.value;
-                        handleInputChange('keyTerms', newTerms);
-                      }}
-                      disabled={mode === 'approve'}
-                    />
-                    <Input
-                      placeholder="Description"
-                      value={term.description}
-                      onChange={(e) => {
-                        const newTerms = [...formData.keyTerms];
-                        newTerms[index].description = e.target.value;
-                        handleInputChange('keyTerms', newTerms);
-                      }}
-                      disabled={mode === 'approve'}
-                    />
-                    <Select
-                      value={term.status}
-                      onValueChange={(value) => {
-                        const newTerms = [...formData.keyTerms];
-                        newTerms[index].status = value;
-                        handleInputChange('keyTerms', newTerms);
-                      }}
-                      disabled={mode === 'approve'}
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="Pending">Pending</SelectItem>
-                        <SelectItem value="In Progress">In Progress</SelectItem>
-                        <SelectItem value="Completed">Completed</SelectItem>
-                        <SelectItem value="Overdue">Overdue</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </Card>
-              ))}
-            </div>
-          )}
 
           <div className="space-y-2">
             <Label htmlFor="remarks">Remarks</Label>
@@ -294,7 +377,20 @@ export function ContractForm({ mode, onSubmit, initialData }: ContractFormProps)
             <div className="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center">
               <Upload className="mx-auto h-12 w-12 text-gray-400" />
               <p className="mt-2 text-gray-600">Click to upload or drag and drop files</p>
-              <Input type="file" multiple className="hidden" disabled={mode === 'approve'} />
+              <Input 
+                type="file" 
+                multiple 
+                onChange={handleFileChange}
+                className="mt-2" 
+                disabled={mode === 'approve'} 
+              />
+              {formData.attachments.length > 0 && (
+                <div className="mt-2">
+                  <p className="text-sm text-gray-600">
+                    {formData.attachments.length} file(s) selected
+                  </p>
+                </div>
+              )}
             </div>
           </div>
 

@@ -2,15 +2,19 @@
 import React from 'react';
 import { ContractForm } from "@/components/contracts/ContractForm";
 import { useNavigate } from 'react-router-dom';
-import { toast } from "@/components/ui/sonner";
+import { useContracts, ContractFormData } from "@/hooks/useContracts";
 
 const CreateContract = () => {
   const navigate = useNavigate();
+  const { createContract } = useContracts();
 
-  const handleSubmit = (data: any) => {
-    console.log('Creating contract:', data);
-    toast.success('Contract submitted for review successfully!');
-    navigate('/contracts');
+  const handleSubmit = async (data: ContractFormData) => {
+    try {
+      await createContract(data);
+      navigate('/contracts');
+    } catch (error) {
+      // Error handling is done in the hook
+    }
   };
 
   return (

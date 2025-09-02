@@ -1,13 +1,12 @@
 import React, { useState } from 'react';
-import { Button } from "@/components/ui/button";
-import { 
-  DropdownMenu, 
-  DropdownMenuContent, 
-  DropdownMenuItem, 
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
-  DropdownMenuSeparator 
 } from "@/components/ui/dropdown-menu";
-import { 
+import {
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
@@ -16,202 +15,152 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-  AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { 
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { 
-  MoreHorizontal, 
-  Edit, 
-  Trash2, 
-  Eye, 
-  Download, 
-  Clock,
-  CheckCircle,
-  XCircle,
-  UserPlus
-} from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
-import { useToast } from "@/hooks/use-toast";
-
-interface Contract {
-  id: string;
-  title: string;
-  contract_type: string;
-  status: string;
-  start_date: string | null;
-  end_date: string | null;
-  value: number | null;
-  description: string | null;
-  priority: string;
-  assigned_to: string | null;
-  department_id: string | null;
-}
+import { Button } from "@/components/ui/button";
+import { MoreVertical, Eye, Edit, Send, CheckCircle, X, Download, Trash2 } from "lucide-react";
+import { useContracts, Contract } from "@/hooks/useContracts";
+import { toast } from "@/components/ui/use-toast";
+import { useNavigate } from 'react-router-dom';
 
 interface ContractActionsProps {
   contract: Contract;
-  onUpdate: () => void;
+  onUpdate?: () => void;
 }
 
 export function ContractActions({ contract, onUpdate }: ContractActionsProps) {
-  const [showEditDialog, setShowEditDialog] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
-  const [editData, setEditData] = useState(contract);
-  const [loading, setLoading] = useState(false);
-  const { toast } = useToast();
+  const { updateContract, deleteContract, updateWorkflowStep } = useContracts();
+  const navigate = useNavigate();
 
-  const handleEdit = async () => {
-    setLoading(true);
+  const handleViewDetails = () => {
+    navigate(`/contracts/${contract.id}`);
+  };
+
+  const handleEditContract = () => {
+    navigate(`/contracts/${contract.id}/edit`);
+  };
+
+  const handleSendForReview = async () => {
     try {
-      const { error } = await supabase
-        .from('contracts')
-        .update({
-          title: editData.title,
-          contract_type: editData.contract_type,
-          status: editData.status,
-          start_date: editData.start_date,
-          end_date: editData.end_date,
-          value: editData.value,
-          description: editData.description,
-          priority: editData.priority,
-          assigned_to: editData.assigned_to,
-          department_id: editData.department_id,
-        })
-        .eq('id', contract.id);
-
-      if (error) throw error;
-
+      await updateContract(contract.id, { status: 'under_review' });
+      await updateWorkflowStep(contract.id, 1, 'in_progress');
       toast({
-        title: "Success",
-        description: "Contract updated successfully"
+        title: "Contract sent for review",
+        description: "The contract has been submitted for legal review.",
       });
-      setShowEditDialog(false);
-      onUpdate();
-    } catch (error: any) {
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: "Failed to update contract: " + error.message
-      });
-    } finally {
-      setLoading(false);
+      onUpdate?.();
+    } catch (error) {
+      // Error handling is done in the hook
     }
+  };
+
+  const handleApprove = async () => {
+    try {
+      await updateContract(contract.id, { status: 'approved' });
+      await updateWorkflowStep(contract.id, 3, 'completed', 'Contract approved');
+      toast({
+        title: "Contract approved",
+        description: "The contract has been approved successfully.",
+      });
+      onUpdate?.();
+    } catch (error) {
+      // Error handling is done in the hook
+    }
+  };
+
+  const handleReject = async () => {
+    try {
+      await updateContract(contract.id, { status: 'rejected' });
+      await updateWorkflowStep(contract.id, 1, 'rejected', 'Contract rejected');
+      toast({
+        title: "Contract rejected",
+        description: "The contract has been rejected.",
+        variant: "destructive",
+      });
+      onUpdate?.();
+    } catch (error) {
+      // Error handling is done in the hook
+    }
+  };
+
+  const handleDownloadPDF = () => {
+    // TODO: Implement PDF generation and download
+    toast({
+      title: "PDF Download",
+      description: "PDF generation feature will be implemented soon.",
+    });
   };
 
   const handleDelete = async () => {
-    setLoading(true);
     try {
-      const { error } = await supabase
-        .from('contracts')
-        .delete()
-        .eq('id', contract.id);
-
-      if (error) throw error;
-
-      toast({
-        title: "Success",
-        description: "Contract deleted successfully"
-      });
+      await deleteContract(contract.id);
       setShowDeleteDialog(false);
-      onUpdate();
-    } catch (error: any) {
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: "Failed to delete contract: " + error.message
-      });
-    } finally {
-      setLoading(false);
+      onUpdate?.();
+    } catch (error) {
+      // Error handling is done in the hook
     }
   };
 
-  const handleStatusChange = async (newStatus: string) => {
-    setLoading(true);
-    try {
-      const { error } = await supabase
-        .from('contracts')
-        .update({ status: newStatus })
-        .eq('id', contract.id);
-
-      if (error) throw error;
-
-      // Add activity log
-      await supabase
-        .from('contract_activities')
-        .insert({
-          contract_id: contract.id,
-          activity_type: 'status_change',
-          description: `Status changed from ${contract.status} to ${newStatus}`,
-          previous_value: contract.status,
-          new_value: newStatus,
-          performed_by: (await supabase.auth.getUser()).data.user?.id || ''
-        });
-
-      toast({
-        title: "Success",
-        description: `Contract status updated to ${newStatus}`
-      });
-      onUpdate();
-    } catch (error: any) {
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: "Failed to update status: " + error.message
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
+  const canEdit = contract.status === 'draft' || contract.status === 'under_review';
+  const canApprove = contract.status === 'under_review';
+  const canReject = contract.status === 'under_review';
+  const canSendForReview = contract.status === 'draft';
 
   return (
     <>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <Button variant="ghost" className="h-8 w-8 p-0">
-            <MoreHorizontal className="h-4 w-4" />
+            <span className="sr-only">Open menu</span>
+            <MoreVertical className="h-4 w-4" />
           </Button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="end">
-          <DropdownMenuItem>
+        <DropdownMenuContent align="end" className="w-56 bg-background border shadow-lg">
+          <DropdownMenuItem onClick={handleViewDetails} className="cursor-pointer">
             <Eye className="mr-2 h-4 w-4" />
             View Details
           </DropdownMenuItem>
-          <DropdownMenuItem onClick={() => setShowEditDialog(true)}>
-            <Edit className="mr-2 h-4 w-4" />
-            Edit Contract
-          </DropdownMenuItem>
+          
+          {canEdit && (
+            <DropdownMenuItem onClick={handleEditContract} className="cursor-pointer">
+              <Edit className="mr-2 h-4 w-4" />
+              Edit Contract
+            </DropdownMenuItem>
+          )}
+          
+          {canSendForReview && (
+            <DropdownMenuItem onClick={handleSendForReview} className="cursor-pointer">
+              <Send className="mr-2 h-4 w-4" />
+              Send for Review
+            </DropdownMenuItem>
+          )}
+          
+          {canApprove && (
+            <DropdownMenuItem onClick={handleApprove} className="cursor-pointer">
+              <CheckCircle className="mr-2 h-4 w-4" />
+              Approve
+            </DropdownMenuItem>
+          )}
+          
+          {canReject && (
+            <DropdownMenuItem onClick={handleReject} className="cursor-pointer">
+              <X className="mr-2 h-4 w-4" />
+              Reject
+            </DropdownMenuItem>
+          )}
+          
           <DropdownMenuSeparator />
-          <DropdownMenuItem onClick={() => handleStatusChange('pending_review')} disabled={loading}>
-            <Clock className="mr-2 h-4 w-4" />
-            Send for Review
-          </DropdownMenuItem>
-          <DropdownMenuItem onClick={() => handleStatusChange('approved')} disabled={loading}>
-            <CheckCircle className="mr-2 h-4 w-4" />
-            Approve
-          </DropdownMenuItem>
-          <DropdownMenuItem onClick={() => handleStatusChange('rejected')} disabled={loading}>
-            <XCircle className="mr-2 h-4 w-4" />
-            Reject
-          </DropdownMenuItem>
-          <DropdownMenuSeparator />
-          <DropdownMenuItem>
+          
+          <DropdownMenuItem onClick={handleDownloadPDF} className="cursor-pointer">
             <Download className="mr-2 h-4 w-4" />
             Download PDF
           </DropdownMenuItem>
-          <DropdownMenuItem 
+          
+          <DropdownMenuSeparator />
+          
+          <DropdownMenuItem
             onClick={() => setShowDeleteDialog(true)}
-            className="text-destructive focus:text-destructive"
+            className="cursor-pointer text-destructive focus:text-destructive"
           >
             <Trash2 className="mr-2 h-4 w-4" />
             Delete
@@ -219,126 +168,22 @@ export function ContractActions({ contract, onUpdate }: ContractActionsProps) {
         </DropdownMenuContent>
       </DropdownMenu>
 
-      {/* Edit Dialog */}
-      <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
-        <DialogContent className="max-w-2xl">
-          <DialogHeader>
-            <DialogTitle>Edit Contract</DialogTitle>
-            <DialogDescription>
-              Update contract details and save changes.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="grid gap-4 py-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="title">Title</Label>
-                <Input
-                  id="title"
-                  value={editData.title}
-                  onChange={(e) => setEditData({ ...editData, title: e.target.value })}
-                />
-              </div>
-              <div>
-                <Label htmlFor="type">Type</Label>
-                <Select 
-                  value={editData.contract_type} 
-                  onValueChange={(value) => setEditData({ ...editData, contract_type: value })}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="service">Service</SelectItem>
-                    <SelectItem value="supply">Supply</SelectItem>
-                    <SelectItem value="consultancy">Consultancy</SelectItem>
-                    <SelectItem value="license">License</SelectItem>
-                    <SelectItem value="nda">NDA</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="start_date">Start Date</Label>
-                <Input
-                  id="start_date"
-                  type="date"
-                  value={editData.start_date || ''}
-                  onChange={(e) => setEditData({ ...editData, start_date: e.target.value })}
-                />
-              </div>
-              <div>
-                <Label htmlFor="end_date">End Date</Label>
-                <Input
-                  id="end_date"
-                  type="date"
-                  value={editData.end_date || ''}
-                  onChange={(e) => setEditData({ ...editData, end_date: e.target.value })}
-                />
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="value">Value (KES)</Label>
-                <Input
-                  id="value"
-                  type="number"
-                  value={editData.value || ''}
-                  onChange={(e) => setEditData({ ...editData, value: parseFloat(e.target.value) })}
-                />
-              </div>
-              <div>
-                <Label htmlFor="priority">Priority</Label>
-                <Select 
-                  value={editData.priority} 
-                  onValueChange={(value) => setEditData({ ...editData, priority: value })}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="low">Low</SelectItem>
-                    <SelectItem value="medium">Medium</SelectItem>
-                    <SelectItem value="high">High</SelectItem>
-                    <SelectItem value="urgent">Urgent</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-            <div>
-              <Label htmlFor="description">Description</Label>
-              <Textarea
-                id="description"
-                value={editData.description || ''}
-                onChange={(e) => setEditData({ ...editData, description: e.target.value })}
-                rows={3}
-              />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowEditDialog(false)}>
-              Cancel
-            </Button>
-            <Button onClick={handleEdit} disabled={loading}>
-              {loading ? 'Saving...' : 'Save Changes'}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Delete Confirmation Dialog */}
       <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete Contract</AlertDialogTitle>
+            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to delete "{contract.title}"? This action cannot be undone.
+              This action cannot be undone. This will permanently delete the contract
+              "{contract.title}" and all associated data.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDelete} disabled={loading}>
-              {loading ? 'Deleting...' : 'Delete'}
+            <AlertDialogAction
+              onClick={handleDelete}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Delete Contract
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

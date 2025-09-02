@@ -22,7 +22,9 @@ interface Contract {
   created_by: string;
   assigned_to: string | null;
   department_id: string | null;
+  unit_id: string | null;
   created_at: string;
+  updated_at: string;
   description: string | null;
   priority: string;
   departments?: {
