@@ -20,6 +20,7 @@ import Analytics from "./pages/Analytics";
 import CreateContract from "./pages/CreateContract";
 import ScheduleReview from "./pages/ScheduleReview";
 import ReviewContract from "./pages/ReviewContract";
+import ContractDetails from "./pages/ContractDetails";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -72,6 +73,8 @@ const MainApp = () => {
               <Route path="/" element={<Index />} />
               <Route path="/contracts" element={<Contracts />} />
               <Route path="/contracts/create" element={<CreateContract />} />
+              <Route path="/contracts/:id" element={<ContractDetails />} />
+              <Route path="/contracts/:id/edit" element={<CreateContract />} />
               <Route path="/create-contract" element={<CreateContract />} />
               <Route path="/schedule-review" element={<ScheduleReview />} />
               <Route path="/contracts/review/:id" element={<ReviewContract />} />

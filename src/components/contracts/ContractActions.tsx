@@ -17,10 +17,11 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
-import { MoreVertical, Eye, Edit, Send, CheckCircle, X, Download, Trash2 } from "lucide-react";
+import { MoreVertical, Eye, Edit, Send, CheckCircle, X, Download, Trash2, RotateCcw } from "lucide-react";
 import { useContracts, Contract } from "@/hooks/useContracts";
 import { toast } from "@/components/ui/use-toast";
 import { useNavigate } from 'react-router-dom';
+import { ApprovalDialog } from './ApprovalDialog';
 
 interface ContractActionsProps {
   contract: Contract;
@@ -29,6 +30,8 @@ interface ContractActionsProps {
 
 export function ContractActions({ contract, onUpdate }: ContractActionsProps) {
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [showApprovalDialog, setShowApprovalDialog] = useState(false);
+  const [currentAction, setCurrentAction] = useState<'approve' | 'reject' | 'return' | null>(null);
   const { updateContract, deleteContract, updateWorkflowStep } = useContracts();
   const navigate = useNavigate();
 
@@ -54,29 +57,40 @@ export function ContractActions({ contract, onUpdate }: ContractActionsProps) {
     }
   };
 
-  const handleApprove = async () => {
-    try {
-      await updateContract(contract.id, { status: 'approved' });
-      await updateWorkflowStep(contract.id, 3, 'completed', 'Contract approved');
-      toast({
-        title: "Contract approved",
-        description: "The contract has been approved successfully.",
-      });
-      onUpdate?.();
-    } catch (error) {
-      // Error handling is done in the hook
-    }
+  const handleApprovalAction = (action: 'approve' | 'reject' | 'return') => {
+    setCurrentAction(action);
+    setShowApprovalDialog(true);
   };
 
-  const handleReject = async () => {
+  const handleApprovalConfirm = async (reason?: string) => {
     try {
-      await updateContract(contract.id, { status: 'rejected' });
-      await updateWorkflowStep(contract.id, 1, 'rejected', 'Contract rejected');
-      toast({
-        title: "Contract rejected",
-        description: "The contract has been rejected.",
-        variant: "destructive",
-      });
+      switch (currentAction) {
+        case 'approve':
+          await updateContract(contract.id, { status: 'approved' });
+          await updateWorkflowStep(contract.id, 3, 'completed', reason || 'Contract approved');
+          toast({
+            title: "Contract approved",
+            description: "The contract has been approved successfully.",
+          });
+          break;
+        case 'reject':
+          await updateContract(contract.id, { status: 'rejected' });
+          await updateWorkflowStep(contract.id, 1, 'rejected', reason || 'Contract rejected');
+          toast({
+            title: "Contract rejected",
+            description: "The contract has been rejected.",
+            variant: "destructive",
+          });
+          break;
+        case 'return':
+          await updateContract(contract.id, { status: 'under_review' });
+          await updateWorkflowStep(contract.id, 1, 'returned', reason || 'Returned for changes');
+          toast({
+            title: "Contract returned",
+            description: "The contract has been returned for changes.",
+          });
+          break;
+      }
       onUpdate?.();
     } catch (error) {
       // Error handling is done in the hook
@@ -136,17 +150,23 @@ export function ContractActions({ contract, onUpdate }: ContractActionsProps) {
           )}
           
           {canApprove && (
-            <DropdownMenuItem onClick={handleApprove} className="cursor-pointer">
+            <DropdownMenuItem onClick={() => handleApprovalAction('approve')} className="cursor-pointer">
               <CheckCircle className="mr-2 h-4 w-4" />
               Approve
             </DropdownMenuItem>
           )}
           
           {canReject && (
-            <DropdownMenuItem onClick={handleReject} className="cursor-pointer">
-              <X className="mr-2 h-4 w-4" />
-              Reject
-            </DropdownMenuItem>
+            <>
+              <DropdownMenuItem onClick={() => handleApprovalAction('reject')} className="cursor-pointer">
+                <X className="mr-2 h-4 w-4" />
+                Reject
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => handleApprovalAction('return')} className="cursor-pointer">
+                <RotateCcw className="mr-2 h-4 w-4" />
+                Return for Changes
+              </DropdownMenuItem>
+            </>
           )}
           
           <DropdownMenuSeparator />
@@ -188,6 +208,14 @@ export function ContractActions({ contract, onUpdate }: ContractActionsProps) {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <ApprovalDialog
+        open={showApprovalDialog}
+        onOpenChange={setShowApprovalDialog}
+        action={currentAction}
+        onConfirm={handleApprovalConfirm}
+        contractTitle={contract.title}
+      />
     </>
   );
 }
