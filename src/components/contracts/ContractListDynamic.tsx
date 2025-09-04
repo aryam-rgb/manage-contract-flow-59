@@ -138,9 +138,9 @@ export function ContractListDynamic() {
         </Button>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-1 xl:grid-cols-4 gap-8">
+      <div className="space-y-8">
         {/* Contracts List */}
-        <div className="col-span-1 xl:col-span-3 space-y-6">
+        <div className="space-y-6">
           <Card>
             <CardHeader>
               <CardTitle>Filters & Search</CardTitle>

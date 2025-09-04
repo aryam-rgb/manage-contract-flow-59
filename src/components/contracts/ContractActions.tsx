@@ -19,6 +19,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { MoreVertical, Eye, Edit, Send, CheckCircle, X, Download, Trash2, RotateCcw } from "lucide-react";
 import { useContracts, Contract } from "@/hooks/useContracts";
+import { useRoleAccess } from '@/hooks/useRoleAccess';
 import { toast } from "@/components/ui/use-toast";
 import { useNavigate } from 'react-router-dom';
 import { ApprovalDialog } from './ApprovalDialog';
@@ -33,6 +34,7 @@ export function ContractActions({ contract, onUpdate }: ContractActionsProps) {
   const [showApprovalDialog, setShowApprovalDialog] = useState(false);
   const [currentAction, setCurrentAction] = useState<'approve' | 'reject' | 'return' | null>(null);
   const { updateContract, deleteContract, updateWorkflowStep } = useContracts();
+  const { canPerformAction, userRole } = useRoleAccess();
   const navigate = useNavigate();
 
   const handleViewDetails = () => {
@@ -115,10 +117,13 @@ export function ContractActions({ contract, onUpdate }: ContractActionsProps) {
     }
   };
 
-  const canEdit = contract.status === 'draft' || contract.status === 'under_review';
-  const canApprove = contract.status === 'under_review';
-  const canReject = contract.status === 'under_review';
-  const canSendForReview = contract.status === 'draft';
+  // Role-based permissions
+  const canEdit = (contract.status === 'draft' || contract.status === 'under_review') && 
+                  canPerformAction('canEditContract', contract.created_by);
+  const canApprove = contract.status === 'under_review' && canPerformAction('canApproveContract');
+  const canReject = contract.status === 'under_review' && canPerformAction('canReviewContract');
+  const canSendForReview = contract.status === 'draft' && canPerformAction('canEditContract', contract.created_by);
+  const canDelete = canPerformAction('canDeleteContract');
 
   return (
     <>
@@ -178,13 +183,15 @@ export function ContractActions({ contract, onUpdate }: ContractActionsProps) {
           
           <DropdownMenuSeparator />
           
-          <DropdownMenuItem
-            onClick={() => setShowDeleteDialog(true)}
-            className="cursor-pointer text-destructive focus:text-destructive"
-          >
-            <Trash2 className="mr-2 h-4 w-4" />
-            Delete
-          </DropdownMenuItem>
+           {canDelete && (
+             <DropdownMenuItem
+               onClick={() => setShowDeleteDialog(true)}
+               className="cursor-pointer text-destructive focus:text-destructive"
+             >
+               <Trash2 className="mr-2 h-4 w-4" />
+               Delete
+             </DropdownMenuItem>
+           )}
         </DropdownMenuContent>
       </DropdownMenu>
 
