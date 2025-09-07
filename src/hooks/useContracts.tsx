@@ -71,7 +71,7 @@ export const useContracts = () => {
       const contractData = {
         title: formData.contractTitle,
         contract_type: formData.contractType,
-        status: 'draft',
+        status: 'review',
         priority: 'medium',
         created_by: user.id,
         department_id: formData.department || null,
@@ -94,7 +94,7 @@ export const useContracts = () => {
       await createWorkflowSteps(data.id);
 
       // Log activity
-      await logActivity(data.id, 'created', 'Contract created', user.id);
+      await logActivity(data.id, 'status_change', 'Contract created and submitted for review', user.id);
 
       toast({
         title: "Contract created successfully",
@@ -125,7 +125,7 @@ export const useContracts = () => {
 
       if (error) throw error;
 
-      await logActivity(id, 'updated', 'Contract updated', user.id);
+      await logActivity(id, 'status_change', 'Contract updated', user.id);
       
       toast({
         title: "Contract updated successfully",
@@ -205,7 +205,7 @@ export const useContracts = () => {
 
       if (error) throw error;
 
-      await logActivity(contractId, 'workflow_updated', `Step ${stepOrder} ${status}`, user.id);
+      await logActivity(contractId, 'status_change', `Step ${stepOrder} ${status}`, user.id);
     } catch (error: any) {
       toast({
         title: "Error updating workflow",

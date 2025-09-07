@@ -67,7 +67,7 @@ export function DynamicDashboard() {
       if (contracts) {
         // Calculate basic stats
         const total = contracts.length;
-        const pending = contracts.filter(c => c.status === 'pending_review' || c.status === 'in_review').length;
+        const pending = contracts.filter(c => c.status === 'review' || c.status === 'draft').length;
         const approved = contracts.filter(c => c.status === 'approved' || c.status === 'signed').length;
         
         // Calculate expiring contracts (within 30 days)
