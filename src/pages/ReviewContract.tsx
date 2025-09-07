@@ -3,35 +3,19 @@ import React from 'react';
 import { ContractForm } from "@/components/contracts/ContractForm";
 import { WorkflowStatus } from "@/components/contracts/WorkflowStatus";
 import { useNavigate, useParams } from 'react-router-dom';
-import { toast } from "@/components/ui/sonner";
+import { toast } from "@/components/ui/use-toast";
 
 const ReviewContract = () => {
   const navigate = useNavigate();
   const { id } = useParams();
 
-  const workflowSteps = [
-    { id: '1', title: 'Contract Initiated', status: 'completed' as const, actor: 'John Doe (IT Dept)', date: '2024-01-10', comments: 'Initial contract request submitted' },
-    { id: '2', title: 'Legal Review', status: 'current' as const, actor: 'Jane Smith (Legal)', date: '', comments: '' },
-    { id: '3', title: 'Department Alignment', status: 'pending' as const, actor: 'John Doe (IT Dept)', date: '', comments: '' },
-    { id: '4', title: 'Final Approval', status: 'pending' as const, actor: 'Legal Manager', date: '', comments: '' },
-    { id: '5', title: 'Contract Signed', status: 'pending' as const, actor: 'System', date: '', comments: '' }
-  ];
-
   const handleSubmit = (data: any) => {
     console.log('Reviewing contract:', data);
-    toast.success('Contract review completed and sent for approval!');
+    toast({
+      title: "Contract updated",
+      description: "Contract changes have been saved.",
+    });
     navigate('/contracts');
-  };
-
-  const handleWorkflowAction = (action: string) => {
-    console.log('Workflow action:', action);
-    if (action === 'approve') {
-      toast.success('Contract approved and moved to next step!');
-    } else if (action === 'return') {
-      toast.info('Contract returned for changes');
-    } else if (action === 'reject') {
-      toast.error('Contract rejected');
-    }
   };
 
   return (
@@ -43,9 +27,7 @@ const ReviewContract = () => {
       
       <WorkflowStatus 
         contractId={id || 'CNT-001'} 
-        currentStep={1} 
-        steps={workflowSteps}
-        onAction={handleWorkflowAction}
+        contractTitle="Software Licensing Agreement"
       />
       
       <ContractForm 

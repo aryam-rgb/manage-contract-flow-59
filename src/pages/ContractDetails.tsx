@@ -235,14 +235,7 @@ const ContractDetails = () => {
           {/* Workflow Status */}
           <WorkflowStatus 
             contractId={contract.id}
-            currentStep={workflowSteps.findIndex(step => step.status === 'current')}
-            steps={workflowSteps}
-            onAction={(action) => {
-              toast({
-                title: "Action processed",
-                description: `Contract ${action} action completed.`,
-              });
-            }}
+            contractTitle={contract.title}
           />
         </div>
 
