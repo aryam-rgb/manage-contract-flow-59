@@ -43,8 +43,7 @@ export function ContractForm({ mode, onSubmit, initialData }: ContractFormProps)
   });
 
   const contractTypes = [
-    'Service', 'License', 'Tenancy', 'MOU', 'Supply', 'Consultancy', 
-    'NDA', 'Maintenance', 'Works', 'Lease', 'Other'
+    'service', 'employment', 'vendor', 'nda', 'partnership'
   ];
 
   const contractFilingFileNames = [
