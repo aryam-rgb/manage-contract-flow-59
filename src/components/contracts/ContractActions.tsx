@@ -100,11 +100,22 @@ export function ContractActions({ contract, onUpdate }: ContractActionsProps) {
   };
 
   const handleDownloadPDF = () => {
-    // TODO: Implement PDF generation and download
-    toast({
-      title: "PDF Download",
-      description: "PDF generation feature will be implemented soon.",
-    });
+    try {
+      // Import the downloadContractPDF function
+      import('@/lib/exportUtils').then(({ downloadContractPDF }) => {
+        downloadContractPDF(contract);
+        toast({
+          title: "PDF Downloaded",
+          description: "Contract report has been downloaded as HTML file (can be printed to PDF).",
+        });
+      });
+    } catch (error) {
+      toast({
+        title: "Download Failed",
+        description: "Failed to download contract report.",
+        variant: "destructive",
+      });
+    }
   };
 
   const handleDelete = async () => {

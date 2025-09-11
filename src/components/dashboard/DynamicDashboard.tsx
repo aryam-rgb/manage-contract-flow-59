@@ -5,11 +5,12 @@ import { Button } from "@/components/ui/button";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line } from 'recharts';
 import { 
   FileText, Clock, CheckCircle, AlertCircle, TrendingUp, Users, 
-  Calendar, DollarSign, Building, Award, AlertTriangle, User, MessageCircle, Activity 
+  Calendar, DollarSign, Building, Award, AlertTriangle, User, MessageCircle, Activity, Download 
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useNavigate } from 'react-router-dom';
+import { exportDepartmentPerformance } from "@/lib/exportUtils";
 
 interface ContractStats {
   total: number;
@@ -183,6 +184,24 @@ export function DynamicDashboard() {
     navigate('/create-contract');
   };
 
+  const handleExportDashboard = () => {
+    if (stats.byDepartment.length === 0) {
+      toast({
+        title: "No Data",
+        description: "No department data available to export.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    exportDepartmentPerformance(stats.byDepartment);
+
+    toast({
+      title: "Export Successful",
+      description: "Dashboard report has been downloaded as CSV file.",
+    });
+  };
+
   if (loading) {
     return (
       <div className="space-y-6">
@@ -210,6 +229,10 @@ export function DynamicDashboard() {
           <Button variant="outline" onClick={handleScheduleReview}>
             <Calendar className="h-4 w-4 mr-2" />
             Schedule Review
+          </Button>
+          <Button variant="outline" onClick={handleExportDashboard}>
+            <Download className="h-4 w-4 mr-2" />
+            Export Report
           </Button>
           <Button onClick={handleNewContract}>
             <FileText className="h-4 w-4 mr-2" />

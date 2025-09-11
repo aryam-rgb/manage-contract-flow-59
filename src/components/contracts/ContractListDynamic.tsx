@@ -10,6 +10,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { ContractActions } from "./ContractActions";
 import { ContractActivities } from "./ContractActivities";
+import { exportContracts } from "@/lib/exportUtils";
 
 interface Contract {
   id: string;
@@ -114,6 +115,26 @@ export function ContractListDynamic() {
     return matchesSearch && matchesStatus && matchesType;
   });
 
+  const handleExportReport = () => {
+    if (contracts.length === 0) {
+      toast({
+        title: "No Data",
+        description: "No contracts available to export.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    exportContracts(filteredContracts, {
+      filename: `contracts_report_${new Date().toISOString().split('T')[0]}.csv`
+    });
+
+    toast({
+      title: "Export Successful",
+      description: `Exported ${filteredContracts.length} contracts to CSV file.`,
+    });
+  };
+
   if (loading) {
     return (
       <div className="space-y-6">
@@ -132,7 +153,7 @@ export function ContractListDynamic() {
           <h2 className="text-2xl font-bold text-foreground">Contract Management</h2>
           <p className="text-muted-foreground mt-1">Manage and track all contracts with real-time activities</p>
         </div>
-        <Button>
+        <Button onClick={handleExportReport}>
           <Download className="h-4 w-4 mr-2" />
           Export Report
         </Button>

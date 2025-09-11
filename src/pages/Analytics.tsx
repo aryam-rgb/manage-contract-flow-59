@@ -14,6 +14,8 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContaine
 import { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Skeleton } from '@/components/ui/skeleton';
+import { exportAnalytics, exportDepartmentPerformance } from '@/lib/exportUtils';
+import { useToast } from '@/hooks/use-toast';
 
 interface MonthlyData {
   month: string;
@@ -42,6 +44,8 @@ const Analytics = () => {
   const [contractTypes, setContractTypes] = useState<ContractType[]>([]);
   const [metrics, setMetrics] = useState<Metric[]>([]);
   const [loading, setLoading] = useState(true);
+  const [contracts, setContracts] = useState<any[]>([]);
+  const { toast } = useToast();
 
   useEffect(() => {
     fetchAnalyticsData();
@@ -67,6 +71,9 @@ const Analytics = () => {
       // Calculate metrics
       const metricsStats = calculateMetrics(contracts || []);
       setMetrics(metricsStats);
+
+      // Store contracts for export
+      setContracts(contracts || []);
 
     } catch (error) {
       console.error('Error fetching analytics data:', error);
@@ -170,6 +177,54 @@ const Analytics = () => {
     ];
   };
 
+  const handleExportAnalytics = () => {
+    if (loading) {
+      toast({
+        title: "Please Wait",
+        description: "Analytics data is still loading.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (contracts.length === 0) {
+      toast({
+        title: "No Data",
+        description: "No contracts available to export.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const analyticsData = {
+      totalContracts: contracts.length,
+      contractsChange: "+12%",
+      pendingReview: contracts.filter(c => c.status === 'review' || c.status === 'draft').length,
+      pendingChange: "-5%",
+      approved: contracts.filter(c => c.status === 'approved' || c.status === 'signed').length,
+      approvedChange: "+18%",
+      expiring: contracts.filter(c => {
+        if (!c.end_date) return false;
+        const endDate = new Date(c.end_date);
+        const today = new Date();
+        const thirtyDaysFromNow = new Date(today.getTime() + (30 * 24 * 60 * 60 * 1000));
+        return endDate <= thirtyDaysFromNow && endDate >= today;
+      }).length,
+      expiringChange: "+2%",
+      departments: [...new Set(contracts.map(c => c.department_id).filter(Boolean))].length,
+      departmentsChange: "+8%",
+      totalValue: `KES ${(contracts.reduce((sum, c) => sum + (c.value || 0), 0) / 1000000).toFixed(1)}M`,
+      valueChange: "+15%"
+    };
+
+    exportAnalytics(analyticsData);
+
+    toast({
+      title: "Export Successful",
+      description: "Analytics report has been downloaded as CSV file.",
+    });
+  };
+
   if (loading) {
     return (
       <div className="space-y-6">
@@ -178,7 +233,7 @@ const Analytics = () => {
             <h1 className="text-3xl font-bold text-gray-900">Analytics</h1>
             <p className="text-gray-600 mt-1">Track performance and contract metrics</p>
           </div>
-          <Button variant="outline" disabled>
+          <Button variant="outline" onClick={handleExportAnalytics}>
             <Download className="h-4 w-4 mr-2" />
             Export Report
           </Button>
@@ -233,7 +288,7 @@ const Analytics = () => {
           <h1 className="text-3xl font-bold text-gray-900">Analytics</h1>
           <p className="text-gray-600 mt-1">Track performance and contract metrics</p>
         </div>
-        <Button variant="outline">
+        <Button variant="outline" onClick={handleExportAnalytics}>
           <Download className="h-4 w-4 mr-2" />
           Export Report
         </Button>
