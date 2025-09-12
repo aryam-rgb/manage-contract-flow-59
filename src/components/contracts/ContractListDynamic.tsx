@@ -23,16 +23,30 @@ export function ContractListDynamic() {
   const [typeFilter, setTypeFilter] = useState('');
   const [selectedContract, setSelectedContract] = useState<string | null>(null);
   const { toast } = useToast();
-  const { contracts, loading, deleteAllContracts, fetchContracts } = useContracts();
-  const { userRole } = useRoleAccess();
+  const { contracts, loading, fetchContracts } = useContracts();
 
-  const handleDeleteAllContracts = async () => {
-    try {
-      await deleteAllContracts();
-    } catch (error) {
-      console.error('Error deleting all contracts:', error);
-    }
-  };
+  // Clear all contracts on component mount (for fresh testing)
+  useEffect(() => {
+    const clearAllContracts = async () => {
+      try {
+        const { error } = await supabase
+          .from('contracts')
+          .delete()
+          .neq('id', ''); // Delete all records
+
+        if (error) throw error;
+        
+        toast({
+          title: "Database Reset",
+          description: "All contracts cleared for fresh testing",
+        });
+      } catch (error: any) {
+        console.error('Error clearing contracts:', error);
+      }
+    };
+
+    clearAllContracts();
+  }, []);
 
   const getStatusBadge = (status: string) => {
     const variants: Record<string, string> = {
@@ -110,36 +124,10 @@ export function ContractListDynamic() {
           <h2 className="text-2xl font-bold text-foreground">Contract Management</h2>
           <p className="text-muted-foreground mt-1">Manage and track all contracts with real-time activities</p>
         </div>
-        <div className="flex gap-2">
-          <Button onClick={handleExportReport}>
-            <Download className="h-4 w-4 mr-2" />
-            Export Report
-          </Button>
-          {userRole === 'admin' && (
-            <AlertDialog>
-              <AlertDialogTrigger asChild>
-                <Button variant="destructive">
-                  <Trash2 className="h-4 w-4 mr-2" />
-                  Delete All Contracts
-                </Button>
-              </AlertDialogTrigger>
-              <AlertDialogContent>
-                <AlertDialogHeader>
-                  <AlertDialogTitle>Delete All Contracts?</AlertDialogTitle>
-                  <AlertDialogDescription>
-                    This action cannot be undone. This will permanently delete all contracts and their associated workflow steps and activities. This is intended for testing purposes only.
-                  </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel>Cancel</AlertDialogCancel>
-                  <AlertDialogAction onClick={handleDeleteAllContracts}>
-                    Delete All
-                  </AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
-          )}
-        </div>
+        <Button onClick={handleExportReport}>
+          <Download className="h-4 w-4 mr-2" />
+          Export Report
+        </Button>
       </div>
 
       <div className="space-y-8">

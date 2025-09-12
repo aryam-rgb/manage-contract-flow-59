@@ -214,34 +214,6 @@ export const useContracts = () => {
     }
   };
 
-  const deleteAllContracts = async () => {
-    if (!user) throw new Error('User not authenticated');
-
-    try {
-      // Delete all contracts (this will cascade and delete related workflow steps and activities)
-      const { error } = await supabase
-        .from('contracts')
-        .delete()
-        .neq('id', ''); // Delete all records
-
-      if (error) throw error;
-
-      toast({
-        title: "All contracts deleted successfully",
-        description: "Database has been reset for fresh testing",
-      });
-
-      fetchContracts();
-    } catch (error: any) {
-      toast({
-        title: "Error deleting contracts",
-        description: error.message,
-        variant: "destructive",
-      });
-      throw error;
-    }
-  };
-
   const createWorkflowSteps = async (contractId: string) => {
     const steps = [
       { step_name: 'Legal Review', step_order: 1, status: 'pending' },
@@ -329,7 +301,6 @@ export const useContracts = () => {
     createContract,
     updateContract,
     deleteContract,
-    deleteAllContracts,
     updateWorkflowStep,
     getDaysToExpiry,
   };
