@@ -58,14 +58,41 @@ export function ContractListDynamic() {
 
       if (error) throw error;
       
-      // Transform the data to match our interface
-      const transformedData: Contract[] = (data || []).map(contract => ({
-        ...contract,
-        departments: null,
-        profiles: null
-      }));
+      // Fetch additional data for each contract
+      const contractsWithDetails = await Promise.all(
+        (data || []).map(async (contract) => {
+          let departmentName = null;
+          let creatorName = null;
+
+          // Fetch department name if department_id exists
+          if (contract.department_id) {
+            const { data: dept } = await supabase
+              .from('departments')
+              .select('name')
+              .eq('id', contract.department_id)
+              .single();
+            departmentName = dept?.name || null;
+          }
+
+          // Fetch creator name if created_by exists
+          if (contract.created_by) {
+            const { data: profile } = await supabase
+              .from('profiles')
+              .select('full_name')
+              .eq('id', contract.created_by)
+              .single();
+            creatorName = profile?.full_name || null;
+          }
+
+          return {
+            ...contract,
+            departments: departmentName ? { name: departmentName } : null,
+            profiles: creatorName ? { full_name: creatorName } : null
+          };
+        })
+      );
       
-      setContracts(transformedData);
+      setContracts(contractsWithDetails);
     } catch (error: any) {
       toast({
         variant: "destructive",
@@ -244,9 +271,9 @@ export function ContractListDynamic() {
                       >
                         <TableCell className="font-medium">{contract.title}</TableCell>
                         <TableCell>{contract.contract_type}</TableCell>
-                        <TableCell>N/A</TableCell>
+                        <TableCell>{contract.departments?.name || 'N/A'}</TableCell>
                         <TableCell>{getStatusBadge(contract.status)}</TableCell>
-                        <TableCell>Creator</TableCell>
+                        <TableCell>{contract.profiles?.full_name || 'Unknown'}</TableCell>
                         <TableCell>
                           <div className="flex items-center space-x-2">
                             <Calendar className="h-4 w-4 text-muted-foreground" />
