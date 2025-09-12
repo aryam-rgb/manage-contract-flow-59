@@ -5,102 +5,32 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Search, Filter, Download, Eye, Edit, Calendar, AlertTriangle } from "lucide-react";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import { Search, Filter, Download, Eye, Edit, Calendar, AlertTriangle, Trash2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { useContracts } from "@/hooks/useContracts";
+import { useRoleAccess } from "@/hooks/useRoleAccess";
 import { ContractActions } from "./ContractActions";
 import { ContractActivities } from "./ContractActivities";
 import { exportContracts } from "@/lib/exportUtils";
 
-interface Contract {
-  id: string;
-  title: string;
-  contract_type: string;
-  status: string;
-  start_date: string | null;
-  end_date: string | null;
-  value: number | null;
-  created_by: string;
-  assigned_to: string | null;
-  department_id: string | null;
-  unit_id: string | null;
-  created_at: string;
-  updated_at: string;
-  description: string | null;
-  priority: string;
-  departments?: {
-    name: string;
-  } | null;
-  profiles?: {
-    full_name: string;
-  } | null;
-}
+import { Contract } from "@/hooks/useContracts";
 
 export function ContractListDynamic() {
-  const [contracts, setContracts] = useState<Contract[]>([]);
-  const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [typeFilter, setTypeFilter] = useState('');
   const [selectedContract, setSelectedContract] = useState<string | null>(null);
   const { toast } = useToast();
+  const { contracts, loading, deleteAllContracts, fetchContracts } = useContracts();
+  const { userRole } = useRoleAccess();
 
-  useEffect(() => {
-    fetchContracts();
-  }, []);
-
-  const fetchContracts = async () => {
+  const handleDeleteAllContracts = async () => {
     try {
-      const { data, error } = await supabase
-        .from('contracts')
-        .select('*')
-        .order('created_at', { ascending: false });
-
-      if (error) throw error;
-      
-      // Fetch additional data for each contract
-      const contractsWithDetails = await Promise.all(
-        (data || []).map(async (contract) => {
-          let departmentName = null;
-          let creatorName = null;
-
-          // Fetch department name if department_id exists
-          if (contract.department_id) {
-            const { data: dept } = await supabase
-              .from('departments')
-              .select('name')
-              .eq('id', contract.department_id)
-              .single();
-            departmentName = dept?.name || null;
-          }
-
-          // Fetch creator name if created_by exists
-          if (contract.created_by) {
-            const { data: profile } = await supabase
-              .from('profiles')
-              .select('full_name')
-              .eq('id', contract.created_by)
-              .single();
-            creatorName = profile?.full_name || null;
-          }
-
-          return {
-            ...contract,
-            departments: departmentName ? { name: departmentName } : null,
-            profiles: creatorName ? { full_name: creatorName } : null
-          };
-        })
-      );
-      
-      setContracts(contractsWithDetails);
-    } catch (error: any) {
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: "Failed to fetch contracts: " + error.message
-      });
-    } finally {
-      setLoading(false);
+      await deleteAllContracts();
+    } catch (error) {
+      console.error('Error deleting all contracts:', error);
     }
   };
 
@@ -180,10 +110,36 @@ export function ContractListDynamic() {
           <h2 className="text-2xl font-bold text-foreground">Contract Management</h2>
           <p className="text-muted-foreground mt-1">Manage and track all contracts with real-time activities</p>
         </div>
-        <Button onClick={handleExportReport}>
-          <Download className="h-4 w-4 mr-2" />
-          Export Report
-        </Button>
+        <div className="flex gap-2">
+          <Button onClick={handleExportReport}>
+            <Download className="h-4 w-4 mr-2" />
+            Export Report
+          </Button>
+          {userRole === 'admin' && (
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button variant="destructive">
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  Delete All Contracts
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Delete All Contracts?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    This action cannot be undone. This will permanently delete all contracts and their associated workflow steps and activities. This is intended for testing purposes only.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogAction onClick={handleDeleteAllContracts}>
+                    Delete All
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          )}
+        </div>
       </div>
 
       <div className="space-y-8">
@@ -273,7 +229,7 @@ export function ContractListDynamic() {
                         <TableCell>{contract.contract_type}</TableCell>
                         <TableCell>{contract.departments?.name || 'N/A'}</TableCell>
                         <TableCell>{getStatusBadge(contract.status)}</TableCell>
-                        <TableCell>{contract.profiles?.full_name || 'Unknown'}</TableCell>
+                        <TableCell>{contract.profiles?.full_name || contract.company_name || 'Unknown'}</TableCell>
                         <TableCell>
                           <div className="flex items-center space-x-2">
                             <Calendar className="h-4 w-4 text-muted-foreground" />

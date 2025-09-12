@@ -19,6 +19,17 @@ export interface Contract {
   value: number | null;
   created_at: string;
   updated_at: string;
+  company_name?: string;
+  contact_person?: string;
+  duration?: string;
+  commencement_date?: string;
+  expiry_date?: string;
+  departments?: {
+    name: string;
+  } | null;
+  profiles?: {
+    full_name: string;
+  } | null;
 }
 
 export interface ContractFormData {
@@ -44,15 +55,50 @@ export const useContracts = () => {
   const { user } = useAuth();
 
   const fetchContracts = async () => {
-    setLoading(true);
     try {
+      setLoading(true);
       const { data, error } = await supabase
         .from('contracts')
         .select('*')
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-      setContracts(data || []);
+
+      // Fetch additional data for each contract
+      const contractsWithDetails = await Promise.all(
+        (data || []).map(async (contract) => {
+          let departmentName = null;
+          let creatorName = null;
+
+          // Fetch department name if department_id exists
+          if (contract.department_id) {
+            const { data: dept } = await supabase
+              .from('departments')
+              .select('name')
+              .eq('id', contract.department_id)
+              .single();
+            departmentName = dept?.name || null;
+          }
+
+          // Fetch creator name if created_by exists  
+          if (contract.created_by) {
+            const { data: profile } = await supabase
+              .from('profiles')
+              .select('full_name')
+              .eq('id', contract.created_by)
+              .single();
+            creatorName = profile?.full_name || null;
+          }
+
+          return {
+            ...contract,
+            departments: departmentName ? { name: departmentName } : null,
+            profiles: creatorName ? { full_name: creatorName } : null
+          };
+        })
+      );
+
+      setContracts(contractsWithDetails);
     } catch (error: any) {
       toast({
         title: "Error fetching contracts",
@@ -168,12 +214,40 @@ export const useContracts = () => {
     }
   };
 
+  const deleteAllContracts = async () => {
+    if (!user) throw new Error('User not authenticated');
+
+    try {
+      // Delete all contracts (this will cascade and delete related workflow steps and activities)
+      const { error } = await supabase
+        .from('contracts')
+        .delete()
+        .neq('id', ''); // Delete all records
+
+      if (error) throw error;
+
+      toast({
+        title: "All contracts deleted successfully",
+        description: "Database has been reset for fresh testing",
+      });
+
+      fetchContracts();
+    } catch (error: any) {
+      toast({
+        title: "Error deleting contracts",
+        description: error.message,
+        variant: "destructive",
+      });
+      throw error;
+    }
+  };
+
   const createWorkflowSteps = async (contractId: string) => {
     const steps = [
       { step_name: 'Legal Review', step_order: 1, status: 'pending' },
-      { step_name: 'Department Alignment', step_order: 2, status: 'pending' },
+      { step_name: 'Management Approval', step_order: 2, status: 'pending' },
       { step_name: 'Final Approval', step_order: 3, status: 'pending' },
-      { step_name: 'Contract Signed', step_order: 4, status: 'pending' },
+      { step_name: 'Contract Execution', step_order: 4, status: 'pending' },
     ];
 
     const workflowSteps = steps.map(step => ({
@@ -255,6 +329,7 @@ export const useContracts = () => {
     createContract,
     updateContract,
     deleteContract,
+    deleteAllContracts,
     updateWorkflowStep,
     getDaysToExpiry,
   };
