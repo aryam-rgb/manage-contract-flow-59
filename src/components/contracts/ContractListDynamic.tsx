@@ -11,6 +11,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useContracts } from "@/hooks/useContracts";
 import { useRoleAccess } from "@/hooks/useRoleAccess";
+import { useAuth } from "@/hooks/useAuth";
 import { ContractActions } from "./ContractActions";
 import { ContractActivities } from "./ContractActivities";
 import { exportContracts } from "@/lib/exportUtils";
@@ -24,6 +25,8 @@ export function ContractListDynamic() {
   const [selectedContract, setSelectedContract] = useState<string | null>(null);
   const { toast } = useToast();
   const { contracts, loading, fetchContracts } = useContracts();
+  const { userRole, permissions } = useRoleAccess();
+  const { user } = useAuth();
 
   // Clear all contracts on component mount (for fresh testing)
   useEffect(() => {
@@ -83,7 +86,22 @@ export function ContractListDynamic() {
     const matchesSearch = contract.title.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesStatus = !statusFilter || statusFilter === 'all' || contract.status === statusFilter;
     const matchesType = !typeFilter || typeFilter === 'all' || contract.contract_type === typeFilter;
-    return matchesSearch && matchesStatus && matchesType;
+    
+    // Role-based filtering for reviewer queue
+    let matchesRole = true;
+    if (userRole === 'reviewer') {
+      // Reviewers should only see contracts in review status (awaiting their action)
+      matchesRole = contract.status === 'review' || contract.status === 'in_review';
+    } else if (userRole === 'approval') {
+      // Approvers should see contracts that have passed review and await approval
+      matchesRole = contract.status === 'pending_approval';
+    } else if (userRole === 'user') {
+      // Regular users only see their own contracts
+      matchesRole = contract.created_by === user?.id;
+    }
+    // Admin and manager can see all contracts (no additional filtering)
+    
+    return matchesSearch && matchesStatus && matchesType && matchesRole;
   });
 
   const handleExportReport = () => {

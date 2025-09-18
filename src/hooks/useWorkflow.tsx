@@ -177,13 +177,26 @@ export const useWorkflow = (contractId?: string) => {
           .eq('id', nextStep.id);
 
         if (nextStepError) throw nextStepError;
+
+        // Update contract status based on next step
+        let newContractStatus = 'in_review';
+        if (nextStep.step_name === 'Management Approval' || nextStep.step_name === 'Final Approval') {
+          newContractStatus = 'pending_approval';
+        }
+
+        const { error: contractError } = await supabase
+          .from('contracts')
+          .update({ status: newContractStatus })
+          .eq('id', contractId);
+
+        if (contractError) throw contractError;
       }
 
-      await logWorkflowActivity('approved', `Step ${currentStep.step_order} approved, moved to next step`);
+      await logWorkflowActivity('approved', `Step ${currentStep.step_order} approved, moved to ${nextStep?.step_name || 'next step'}`);
       
       toast({
         title: "Step approved",
-        description: "Contract moved to next workflow step.",
+        description: `Contract moved to ${nextStep?.step_name || 'next workflow step'}.`,
       });
     }
 
@@ -242,10 +255,10 @@ export const useWorkflow = (contractId?: string) => {
 
     if (stepError) throw stepError;
 
-    // Update contract status back to draft or under_review
+    // Update contract status back to draft so user can modify
     const { error: contractError } = await supabase
       .from('contracts')
-      .update({ status: 'under_review' })
+      .update({ status: 'draft' })
       .eq('id', contractId);
 
     if (contractError) throw contractError;
@@ -254,7 +267,7 @@ export const useWorkflow = (contractId?: string) => {
     
     toast({
       title: "Contract returned",
-      description: "Contract has been returned for modifications.",
+      description: "Contract has been returned to the user for modifications.",
     });
 
     await fetchWorkflowSteps(contractId);
