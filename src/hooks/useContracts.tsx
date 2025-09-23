@@ -162,6 +162,14 @@ export const useContracts = () => {
     if (!user) throw new Error('User not authenticated');
 
     try {
+      // Backend role validation for status changes
+      if (updates.status) {
+        const validation = await validateStatusChange(id, updates.status);
+        if (!validation.allowed) {
+          throw new Error(validation.reason);
+        }
+      }
+
       const { data, error } = await supabase
         .from('contracts')
         .update(updates)
@@ -238,6 +246,12 @@ export const useContracts = () => {
     if (!user) throw new Error('User not authenticated');
 
     try {
+      // Backend role validation for workflow step updates
+      const validation = await validateWorkflowAction(contractId, stepOrder, status);
+      if (!validation.allowed) {
+        throw new Error(validation.reason);
+      }
+
       const { error } = await supabase
         .from('contract_workflow_steps')
         .update({
@@ -278,6 +292,130 @@ export const useContracts = () => {
     }
   };
 
+  const validateStatusChange = async (contractId: string, newStatus: string) => {
+    if (!user) return { allowed: false, reason: 'User not authenticated' };
+
+    try {
+      // Get current contract and user role
+      const { data: contract } = await supabase
+        .from('contracts')
+        .select('status, created_by')
+        .eq('id', contractId)
+        .single();
+
+      const { data: userRole } = await supabase
+        .from('user_roles')
+        .select('role')
+        .eq('user_id', user.id)
+        .single();
+
+      if (!contract || !userRole) {
+        return { allowed: false, reason: 'Contract or user role not found' };
+      }
+
+      // Role-based validation logic
+      switch (newStatus) {
+        case 'under_review':
+          // Only contract creators can send for review
+          return {
+            allowed: contract.created_by === user.id || userRole.role === 'admin',
+            reason: (contract.created_by === user.id || userRole.role === 'admin') ? '' : 'Only contract creators can send for review'
+          };
+        
+        case 'approved':
+          // Only approval role can approve
+          return {
+            allowed: userRole.role === 'approval' || userRole.role === 'admin',
+            reason: (userRole.role === 'approval' || userRole.role === 'admin') ? '' : 'Only users with approval role can approve contracts'
+          };
+        
+        case 'rejected':
+          // Reviewers and approval users can reject
+          return {
+            allowed: ['reviewer', 'approval', 'admin'].includes(userRole.role),
+            reason: ['reviewer', 'approval', 'admin'].includes(userRole.role) ? '' : 'Only reviewers or approvers can reject contracts'
+          };
+        
+        case 'draft':
+          // For returning contracts - reviewers and approval users can return
+          return {
+            allowed: ['reviewer', 'approval', 'admin'].includes(userRole.role),
+            reason: ['reviewer', 'approval', 'admin'].includes(userRole.role) ? '' : 'Only reviewers or approvers can return contracts'
+          };
+        
+        default:
+          return { allowed: true, reason: '' };
+      }
+    } catch (error) {
+      return { allowed: false, reason: 'Error validating status change' };
+    }
+  };
+
+  const validateWorkflowAction = async (contractId: string, stepOrder: number, newStatus: string) => {
+    if (!user) return { allowed: false, reason: 'User not authenticated' };
+
+    try {
+      // Get user role and current workflow step
+      const { data: userRole } = await supabase
+        .from('user_roles')
+        .select('role')
+        .eq('user_id', user.id)
+        .single();
+
+      const { data: step } = await supabase
+        .from('contract_workflow_steps')
+        .select('step_name, status, assigned_to')
+        .eq('contract_id', contractId)
+        .eq('step_order', stepOrder)
+        .single();
+
+      if (!userRole || !step) {
+        return { allowed: false, reason: 'User role or workflow step not found' };
+      }
+
+      // Role-based workflow validation
+      switch (newStatus) {
+        case 'completed':
+          // Check if user can complete this step type
+          if (step.step_name === 'Legal Review') {
+            return {
+              allowed: ['reviewer', 'admin'].includes(userRole.role),
+              reason: ['reviewer', 'admin'].includes(userRole.role) ? '' : 'Only reviewers can complete legal review'
+            };
+          } else if (step.step_name === 'Management Approval' || step.step_name === 'Final Approval') {
+            return {
+              allowed: ['approval', 'admin'].includes(userRole.role),
+              reason: ['approval', 'admin'].includes(userRole.role) ? '' : 'Only users with approval role can complete approval steps'
+            };
+          }
+          break;
+        
+        case 'rejected':
+          return {
+            allowed: ['reviewer', 'approval', 'admin'].includes(userRole.role),
+            reason: ['reviewer', 'approval', 'admin'].includes(userRole.role) ? '' : 'Only reviewers or approvers can reject'
+          };
+        
+        case 'returned':
+          return {
+            allowed: ['reviewer', 'approval', 'admin'].includes(userRole.role),
+            reason: ['reviewer', 'approval', 'admin'].includes(userRole.role) ? '' : 'Only reviewers or approvers can return for changes'
+          };
+        
+        case 'in_progress':
+          // Allow setting to in progress if assigned or has proper role
+          return { allowed: true, reason: '' };
+        
+        default:
+          return { allowed: true, reason: '' };
+      }
+
+      return { allowed: true, reason: '' };
+    } catch (error) {
+      return { allowed: false, reason: 'Error validating workflow action' };
+    }
+  };
+
   const getDaysToExpiry = (expiryDate: string | null): string => {
     if (!expiryDate) return 'N/A';
     
@@ -302,6 +440,8 @@ export const useContracts = () => {
     updateContract,
     deleteContract,
     updateWorkflowStep,
+    validateStatusChange,
+    validateWorkflowAction,
     getDaysToExpiry,
   };
 };
